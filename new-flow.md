@@ -756,26 +756,9 @@ BPP /on_status → receiveLot() → Records receipt event
 
 ### Phase 5: Processing
 
-#### 5.1 Create output lot for ginned cotton
+#### 5.1 Record transformation (Beckn Transform)
 
-First, create the output lot that will be produced:
-
-```bash
-curl -X POST http://localhost:3000/query/beckn/declare-lot \
-  -H "Content-Type: application/json" \
-  -d '{
-    "lotId": "061414112345678902",
-    "actorDID": "TRST01-BUYER-001",
-    "commodityType": "ginned_cotton",
-    "commoditySector": "agriculture",
-    "commodityHsCode": "5203.00",
-    "originGLN": "GLN-0614141000000",
-    "harvestDate": "2024-01-15T15:00:00Z",
-    "kdeHash": "hash789"
-  }'
-```
-
-#### 5.2 Record transformation (Beckn Transform)
+Output lots are now defined directly in the transform request and created dynamically:
 
 ```bash
 curl -X POST http://localhost:3002/on_update \
@@ -795,7 +778,18 @@ curl -X POST http://localhost:3002/on_update \
         "processId": "PROCESS_001",
         "processType": "ginning",
         "inputLotIDs": ["061414112345678901"],
-        "outputLotIDs": ["061414112345678902"],
+        "outputLots": [
+          {
+            "lotId": "061414112345678902",
+            "commodityType": "ginned_cotton",
+            "commoditySector": "agriculture",
+            "commodityHsCode": "5203.00",
+            "originGLN": "GLN-0614141000000",
+            "harvestDate": "2024-01-15T15:00:00Z",
+            "kdeHash": "hash789",
+            "ownerActorId": "TRST01-BUYER-001"
+          }
+        ],
         "facilityId": "TRST01-GINNING-001",
         "yieldRatio": "0.4"
       }
@@ -805,8 +799,14 @@ curl -X POST http://localhost:3002/on_update \
 
 **Flow:**
 ```
-BPP /on_update → transformLot() → Records transformation event
+BPP /on_update → declare output lots → transformLot() → Records transformation event
 ```
+
+**Chaincode State Change:**
+- Output lots created with specified commodity type and HS code
+- Input lot status: `Processed`
+- New transformation record created on ledger
+- Ownership of output lots assigned to specified owner
 
 **Response:**
 ```json
