@@ -161,8 +161,8 @@ Declared → Confirmed → DispatchPending → Dispatched → InTransit → Rece
 
 Before using Beckn functions, you need to create base data:
 
-1. **Create Actors** - Register all supply chain participants
-2. **Create Facilities** - Register processing facilities
+1. **Create Actors** - Register all supply chain participants (farmer, buyer, transporter)
+2. **Create Facilities** - Register processing facilities (optional)
 3. **Declare Lots** - Register initial commodity lots
 
 ### Phase 2: Discovery - Search for Lots
@@ -187,7 +187,7 @@ BAP /confirm → BPP /on_confirm → transferCustody() → Updates custody chain
 
 ### Phase 4: Physical Movement
 
-Buyer initiates dispatch, confirms dispatch, and consignee receives the lot.
+Buyer initiates dispatch, confirms dispatch, and receives the lot.
 
 **Flow:**
 ```
@@ -341,20 +341,17 @@ curl -X POST http://localhost:3000/query/invoke \
 #### 1.6 Declare Cotton Lot (Beckn Function)
 
 ```bash
-curl -X POST http://localhost:3000/query/invoke \
+curl -X POST http://localhost:3000/beckn/declare-lot \
   -H "Content-Type: application/json" \
   -d '{
-    "functionName": "declareLot",
-    "args": [
-      "061414112345678901",  // GS1 SGTIN format
-      "did:example:farmer1",
-      "cotton",
-      "agriculture",
-      "GLN-0614141000000",    // GS1 GLN format
-      "2024-01-15T00:00:00Z",
-      "hash123",
-      "5201.00"               // HS Code for raw cotton
-    ]
+    "lotId": "061414112345678901",
+    "actorDID": "did:example:farmer1",
+    "commodityType": "cotton",
+    "commoditySector": "agriculture",
+    "originGLN": "GLN-0614141000000",
+    "harvestDate": "2024-01-15T00:00:00Z",
+    "kdeHash": "hash123",
+    "hsCode": "5201.00"
   }'
 ```
 
@@ -524,7 +521,7 @@ curl -X POST http://localhost:3001/confirm \
     "message": {
       "order": {
         "id": "ORDER_001",
-        "items": [{"id": "SGTIN-001"}],
+        "items": [{"id": "061414112345678901"}],
         "provider": {"id": "did:example:farmer1"},
         "consumer": {"id": "did:example:buyer1"},
         "quote": {"id": "QUOTE_001"}
@@ -546,8 +543,8 @@ BAP /confirm → BPP /on_confirm → transferCustody() → Updates custody chain
     "order": {
       "state": "CONFIRMED",
       "@ondc/org/traceability": {
-        "transfer_id": "TRANSFER_SGTIN-001_1705334100000",
-        "lot_id": "SGTIN-001",
+        "transfer_id": "TRANSFER_061414112345678901_1705334100000",
+        "lot_id": "061414112345678901",
         "from_did": "did:example:farmer1",
         "to_did": "did:example:buyer1",
         "timestamp": "2024-01-15T10:15:00Z"
@@ -559,7 +556,7 @@ BAP /confirm → BPP /on_confirm → transferCustody() → Updates custody chain
 
 **Chaincode State Change:**
 - Lot custody chain: `[did:example:farmer1, did:example:buyer1]`
-- Lot status: `InTransit`
+- Lot status: `Confirmed`
 - New custody transfer record created on ledger
 
 ---
@@ -710,7 +707,7 @@ BPP /on_status → cancelDispatch() → Reverts to Confirmed
 - Ownership unchanged (still with farmer)
 - Dispatch record status: `Cancelled`
 
-#### 4.4 Consignee receives the lot (Beckn Receipt)
+#### 4.4 Buyer receives the lot (Beckn Receipt)
 
 ```bash
 curl -X POST http://localhost:3002/on_status \
@@ -725,7 +722,7 @@ curl -X POST http://localhost:3002/on_status \
       "order": {
         "items": [{"id": "061414112345678901"}],
         "state": "Delivered",
-        "consignee_id": "did:example:consignee1",
+        "buyer_id": "did:example:buyer1",
         "condition_hash": "hash456"
       }
     }
@@ -755,7 +752,7 @@ BPP /on_status → receiveLot() → Records receipt event
 
 **Chaincode State Change:**
 - Lot status: `Received`
-- Lot current custodian: `did:example:consignee1`
+- Lot current custodian: `did:example:buyer1`
 - New receipt record created on ledger
 
 ---
@@ -767,20 +764,17 @@ BPP /on_status → receiveLot() → Records receipt event
 First, create the output lot that will be produced:
 
 ```bash
-curl -X POST http://localhost:3000/query/invoke \
+curl -X POST http://localhost:3000/beckn/declare-lot \
   -H "Content-Type: application/json" \
   -d '{
-    "functionName": "declareLot",
-    "args": [
-      "061414112345678902",  // GS1 SGTIN format for output lot
-      "did:example:consignee1",
-      "ginned_cotton",
-      "agriculture",
-      "GLN-0614141000000",
-      "2024-01-15T15:00:00Z",
-      "hash789",
-      "5203.00"               // HS Code for ginned cotton
-    ]
+    "lotId": "061414112345678902",
+    "actorDID": "did:example:buyer1",
+    "commodityType": "ginned_cotton",
+    "commoditySector": "agriculture",
+    "originGLN": "GLN-0614141000000",
+    "harvestDate": "2024-01-15T15:00:00Z",
+    "kdeHash": "hash789",
+    "hsCode": "5203.00"
   }'
 ```
 
@@ -883,13 +877,13 @@ curl -X POST http://localhost:3000/query/custom \
 
 ### Ledger Records Created
 
-1. **Actor Records:** 4 actors (farmer, buyer, transporter, consignee)
-2. **Facility Record:** 1 ginning facility
+1. **Actor Records:** 3 actors (farmer, buyer, transporter)
+2. **Facility Record:** 1 ginning facility (optional)
 3. **Lot Records:** 2 lots (061414112345678901, 061414112345678902)
 4. **Custody Transfer:** 1 transfer record
 5. **Dispatch Record:** 1 dispatch record (with Pending/Confirmed status)
 6. **Receipt Record:** 1 receipt record
-7. **Transformation Record:** 1 transformation record
+7. **Transformation Record:** 1 transformation record (optional)
 
 ---
 
@@ -900,18 +894,20 @@ curl -X POST http://localhost:3000/query/custom \
 | Function | Endpoint | Purpose |
 |----------|----------|---------|
 | `getLotsByFilter()` | `/query/custom` | Query lots with filters |
-| `getLotWithLineage()` | `/query/custom` | Get lot with parent-child lineage |
+| `getLotWithLineage()` | `/beckn/get-lot-lineage` | Get lot with lineage |
 
 ### Transaction Functions (Write)
 
 | Function | Endpoint | Purpose |
 |----------|----------|---------|
-| `declareLot()` | `/query/invoke` | Register new lot |
-| `transferCustody()` | `/query/invoke` | Transfer custody |
-| `dispatchLot()` | `/query/invoke` | Record dispatch |
-| `receiveLot()` | `/query/invoke` | Record receipt |
-| `transformLot()` | `/query/invoke` | Record transformation |
-| `splitMergeLot()` | `/query/invoke` | Split/merge lots |
+| `declareLot()` | `/beckn/declare-lot` | Register new commodity lot with HS code |
+| `transferCustody()` | `/beckn/transfer-custody` | Transfer custody between actors |
+| `initiateDispatch()` | `/beckn/initiate-dispatch` | Create pending dispatch |
+| `confirmDispatch()` | `/beckn/confirm-dispatch` | Confirm dispatch and transfer ownership |
+| `cancelDispatch()` | `/beckn/cancel-dispatch` | Cancel pending dispatch |
+| `receiveLot()` | `/beckn/receive-lot` | Record physical receipt |
+| `transformLot()` | `/beckn/transform-lot` | Processing/transformation |
+| `splitMergeLot()` | `/beckn/split-merge-lot` | Split/merge lots |
 
 ---
 
