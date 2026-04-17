@@ -8,9 +8,10 @@ This guide explains the complete integration between the existing OATS traceabil
 
 1. [Architecture Overview](#architecture-overview)
 2. [Chaincode Structure](#chaincode-structure)
-3. [Integration Flow](#integration-flow)
-4. [Complete End-to-End Example](#complete-end-to-end-example)
-5. [Curl Commands by Flow](#curl-commands-by-flow)
+3. [Status Flow](#status-flow)
+4. [Integration Flow](#integration-flow)
+5. [Complete End-to-End Example](#complete-end-to-end-example)
+6. [Curl Commands by Flow](#curl-commands-by-flow)
 
 ---
 
@@ -122,6 +123,33 @@ GetAssetLineage()         getLotWithLineage()      Enhanced with Beckn fields
 
 ---
 
+## Status Flow
+
+The lot status follows this lifecycle:
+
+```
+Declared → Confirmed → DispatchPending → Dispatched → InTransit → Received → Processed
+```
+
+### Status Meanings
+
+| Status | Description | Ownership | Visible in Search |
+|--------|-------------|-----------|-------------------|
+| `Declared` | Lot created by farmer, available for purchase | Farmer | ✅ Yes |
+| `Confirmed` | Buyer confirmed purchase, awaiting dispatch | Farmer → Buyer (pending) | ❌ No |
+| `DispatchPending` | Dispatch initiated, awaiting confirmation (can be cancelled) | Farmer → Buyer (pending) | ❌ No |
+| `Dispatched` | Dispatch confirmed, ownership transferred to buyer | Buyer | ❌ No |
+| `InTransit` | Lot is being transported | Buyer | ❌ No |
+| `Received` | Lot received at destination | Buyer → Consignee | ❌ No |
+| `Processed` | Lot transformed | Consignee | ❌ No |
+
+### Dispatch Cancellation
+
+- If cancelled in `DispatchPending` → status reverts to `Confirmed`, ownership unchanged
+- If cancelled in `Dispatched` → not allowed (ownership already transferred)
+
+---
+
 ## Integration Flow
 
 ### Phase 1: Setup - Create Foundation Data
@@ -154,12 +182,14 @@ BAP /confirm → BPP /on_confirm → transferCustody() → Updates custody chain
 
 ### Phase 4: Physical Movement
 
-Provider dispatches and consignee receives the lot.
+Buyer initiates dispatch, confirms dispatch, and consignee receives the lot.
 
 **Flow:**
 ```
-BPP /on_status (dispatch) → dispatchLot() → Records dispatch
-BPP /on_status (receive) → receiveLot() → Records receipt
+BPP /on_status (dispatch_initiated) → initiateDispatch() → Creates pending dispatch
+BPP /on_status (dispatch_confirmed) → confirmDispatch() → Transfers ownership to buyer
+BPP /on_status (dispatch_cancelled) → cancelDispatch() → Reverts to Confirmed (optional)
+BPP /on_status (delivered) → receiveLot() → Records receipt
 ```
 
 ### Phase 5: Processing
@@ -311,13 +341,14 @@ curl -X POST http://localhost:3000/query/invoke \
   -d '{
     "functionName": "declareLot",
     "args": [
-      "SGTIN-001",
+      "061414112345678901",  // GS1 SGTIN format
       "did:example:farmer1",
       "cotton",
       "agriculture",
-      "GLN-001",
+      "GLN-0614141000000",    // GS1 GLN format
       "2024-01-15T00:00:00Z",
-      "hash123"
+      "hash123",
+      "5201.00"               // HS Code for raw cotton
     ]
   }'
 ```
@@ -530,7 +561,7 @@ BAP /confirm → BPP /on_confirm → transferCustody() → Updates custody chain
 
 ### Phase 4: Physical Movement
 
-#### 4.1 Provider dispatches the lot (Beckn Dispatch)
+#### 4.1 Buyer initiates dispatch (Beckn Dispatch Initiated)
 
 ```bash
 curl -X POST http://localhost:3002/on_status \
@@ -543,8 +574,8 @@ curl -X POST http://localhost:3002/on_status \
     },
     "message": {
       "order": {
-        "items": [{"id": "SGTIN-001"}],
-        "state": "InTransit",
+        "items": [{"id": "061414112345678901"}],
+        "state": "dispatch_initiated",
         "gps_coords": "12.9716,77.5946",
         "transporter_id": "did:example:transporter1",
         "vehicle_id": "VEH001"
