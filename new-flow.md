@@ -211,19 +211,18 @@ BPP /on_update (split_merge) → splitMergeLot() → Records split/merge
 
 ## Complete End-to-End Example
 
-### Scenario: Cotton Lot from Farm to Ginning Facility
+### Scenario: Cotton Lot from Farm to Buyer
 
 **Actors:**
 - Farmer (did:example:farmer1)
 - Buyer (did:example:buyer1)
 - Transporter (did:example:transporter1)
-- Consignee (did:example:consignee1)
 
-**Facility:**
+**Facility (Optional):**
 - Ginning Facility (FACILITY_001)
 
 **Lot:**
-- Cotton Lot (SGTIN-001)
+- Cotton Lot (061414112345678901)
 
 ---
 
@@ -234,19 +233,19 @@ BPP /on_update (split_merge) → splitMergeLot() → Records split/merge
 #### 1.1 Create Farmer Actor
 
 ```bash
-curl -X POST http://localhost:3000/query/invoke \
+curl -X POST http://localhost:3000/actors/create \
   -H "Content-Type: application/json" \
   -d '{
-    "functionName": "CreateActor",
-    "args": [
-      "did:example:farmer1",
-      "farmer",
-      "John Farmer",
-      "REG-001",
-      "{\"phone\": \"+91-9876543210\", \"email\": \"john@farm.com\"}",
-      "[\"CERT-001\", \"CERT-002\"]",
-      "{}"
-    ]
+    "actorId": "did:example:farmer1",
+    "actorType": "farmer",
+    "name": "John Farmer",
+    "registryReference": "REG-001",
+    "contactDetails": {
+      "phone": "+91-9876543210",
+      "email": "john@farm.com"
+    },
+    "certificationIds": ["CERT-001", "CERT-002"],
+    "metadata": {}
   }'
 ```
 
@@ -264,81 +263,64 @@ curl -X POST http://localhost:3000/query/invoke \
 #### 1.2 Create Buyer Actor
 
 ```bash
-curl -X POST http://localhost:3000/query/invoke \
+curl -X POST http://localhost:3000/actors/create \
   -H "Content-Type: application/json" \
   -d '{
-    "functionName": "CreateActor",
-    "args": [
-      "did:example:buyer1",
-      "buyer",
-      "Acme Textiles",
-      "REG-002",
-      "{\"phone\": \"+91-9876543211\", \"email\": \"acme@textiles.com\"}",
-      "[\"CERT-003\"]",
-      "{}"
-    ]
+    "actorId": "did:example:buyer1",
+    "actorType": "buyer",
+    "name": "Acme Textiles",
+    "registryReference": "REG-002",
+    "contactDetails": {
+      "phone": "+91-9876543211",
+      "email": "acme@textiles.com"
+    },
+    "certificationIds": ["CERT-003"],
+    "metadata": {}
   }'
 ```
 
 #### 1.3 Create Transporter Actor
 
 ```bash
-curl -X POST http://localhost:3000/query/invoke \
+curl -X POST http://localhost:3000/actors/create \
   -H "Content-Type: application/json" \
   -d '{
-    "functionName": "CreateActor",
-    "args": [
-      "did:example:transporter1",
-      "transporter",
-      "Fast Logistics",
-      "REG-003",
-      "{\"phone\": \"+91-9876543212\", \"email\": \"fast@logistics.com\"}",
-      "[]",
-      "{}"
-    ]
+    "actorId": "did:example:transporter1",
+    "actorType": "transporter",
+    "name": "Fast Logistics",
+    "registryReference": "REG-003",
+    "contactDetails": {
+      "phone": "+91-9876543212",
+      "email": "fast@logistics.com"
+    },
+    "certificationIds": [],
+    "metadata": {}
   }'
 ```
 
-#### 1.4 Create Consignee Actor
+#### 1.4 Create Ginning Facility
 
 ```bash
-curl -X POST http://localhost:3000/query/invoke \
+curl -X POST http://localhost:3000/facilities/create \
   -H "Content-Type: application/json" \
   -d '{
-    "functionName": "CreateActor",
-    "args": [
-      "did:example:consignee1",
-      "consignee",
-      "Warehouse Manager",
-      "REG-004",
-      "{\"phone\": \"+91-9876543213\", \"email\": \"warehouse@acme.com\"}",
-      "[]",
-      "{}"
-    ]
+    "facilityId": "FACILITY_001",
+    "facilityType": "ginning",
+    "ownerActorId": "did:example:buyer1",
+    "location": {
+      "address": "123 Ginning Road",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "country": "IN"
+    },
+    "registrationNumber": "REG-FAC-001",
+    "capacity": 10000,
+    "complianceCertificates": ["CERT-GIN-001"],
+    "metadata": {}
   }'
 ```
 
-#### 1.5 Create Ginning Facility
-
-```bash
-curl -X POST http://localhost:3000/query/invoke \
-  -H "Content-Type: application/json" \
-  -d '{
-    "functionName": "CreateFacility",
-    "args": [
-      "FACILITY_001",
-      "ginning",
-      "did:example:consignee1",
-      "{\"lat\": 12.9716, \"lng\": 77.5946, \"address\": \"Bangalore\"}",
-      "FAC-REG-001",
-      "1000",
-      "[\"CERT-004\"]",
-      "{}"
-    ]
-  }'
-```
-
-#### 1.6 Declare Cotton Lot (Beckn Function)
+#### 1.5 Declare Cotton Lot (Beckn Function)
 
 ```bash
 curl -X POST http://localhost:3000/beckn/declare-lot \
@@ -359,13 +341,14 @@ curl -X POST http://localhost:3000/beckn/declare-lot \
 ```json
 {
   "docType": "lot",
-  "lot_id": "SGTIN-001",
+  "lot_id": "061414112345678901",
   "actor_did": "did:example:farmer1",
   "commodity_type": "cotton",
   "commodity_sector": "agriculture",
-  "origin_gln": "GLN-001",
+  "origin_gln": "GLN-0614141000000",
   "harvest_date": "2024-01-15T00:00:00Z",
   "kde_hash": "hash123",
+  "hs_code": "5201.00",
   "status": "Declared",
   "custody_chain": ["did:example:farmer1"]
 }
