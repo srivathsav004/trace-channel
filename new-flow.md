@@ -214,15 +214,15 @@ BPP /on_update (split_merge) → splitMergeLot() → Records split/merge
 ### Scenario: Cotton Lot from Farm to Buyer
 
 **Actors:**
-- Farmer (did:example:farmer1)
-- Buyer (did:example:buyer1)
-- Transporter (did:example:transporter1)
+- Farmer (TRST01-FARMER-001)
+- Buyer (TRST01-BUYER-001)
+- Transporter (TRST01-TRANSPORT-001)
 
 **Facility (Optional):**
-- Ginning Facility (FACILITY_001)
+- Ginning Facility (TRST01-GINNING-001)
 
 **Lot:**
-- Cotton Lot (061414112345678901)
+- Cotton Lot (061414112345678901) - GS1 SGTIN format
 
 ---
 
@@ -236,7 +236,7 @@ BPP /on_update (split_merge) → splitMergeLot() → Records split/merge
 curl -X POST http://localhost:3000/actors/create \
   -H "Content-Type: application/json" \
   -d '{
-    "actorId": "did:example:farmer1",
+    "actorId": "TRST01-FARMER-001",
     "actorType": "farmer",
     "name": "John Farmer",
     "registryReference": "REG-001",
@@ -253,7 +253,7 @@ curl -X POST http://localhost:3000/actors/create \
 ```json
 {
   "docType": "actor",
-  "actor_id": "did:example:farmer1",
+  "actor_id": "TRST01-FARMER-001",
   "actor_type": "farmer",
   "name": "John Farmer",
   "status": "Active"
@@ -266,7 +266,7 @@ curl -X POST http://localhost:3000/actors/create \
 curl -X POST http://localhost:3000/actors/create \
   -H "Content-Type: application/json" \
   -d '{
-    "actorId": "did:example:buyer1",
+    "actorId": "TRST01-BUYER-001",
     "actorType": "buyer",
     "name": "Acme Textiles",
     "registryReference": "REG-002",
@@ -285,7 +285,7 @@ curl -X POST http://localhost:3000/actors/create \
 curl -X POST http://localhost:3000/actors/create \
   -H "Content-Type: application/json" \
   -d '{
-    "actorId": "did:example:transporter1",
+    "actorId": "TRST01-TRANSPORT-001",
     "actorType": "transporter",
     "name": "Fast Logistics",
     "registryReference": "REG-003",
@@ -298,15 +298,15 @@ curl -X POST http://localhost:3000/actors/create \
   }'
 ```
 
-#### 1.4 Create Ginning Facility
+#### 1.4 Create Ginning Facility (Optional)
 
 ```bash
 curl -X POST http://localhost:3000/facilities/create \
   -H "Content-Type: application/json" \
   -d '{
-    "facilityId": "FACILITY_001",
+    "facilityId": "TRST01-GINNING-001",
     "facilityType": "ginning",
-    "ownerActorId": "did:example:buyer1",
+    "ownerActorId": "TRST01-BUYER-001",
     "location": {
       "address": "123 Ginning Road",
       "city": "Mumbai",
@@ -327,13 +327,13 @@ curl -X POST http://localhost:3000/beckn/declare-lot \
   -H "Content-Type: application/json" \
   -d '{
     "lotId": "061414112345678901",
-    "actorDID": "did:example:farmer1",
+    "actorDID": "TRST01-FARMER-001",
     "commodityType": "cotton",
     "commoditySector": "agriculture",
+    "commodityHsCode": "5201.00",
     "originGLN": "GLN-0614141000000",
     "harvestDate": "2024-01-15T00:00:00Z",
-    "kdeHash": "hash123",
-    "hsCode": "5201.00"
+    "kdeHash": "hash123"
   }'
 ```
 
@@ -342,15 +342,15 @@ curl -X POST http://localhost:3000/beckn/declare-lot \
 {
   "docType": "lot",
   "lot_id": "061414112345678901",
-  "actor_did": "did:example:farmer1",
+  "actor_did": "TRST01-FARMER-001",
   "commodity_type": "cotton",
   "commodity_sector": "agriculture",
+  "hs_code": "5201.00",
   "origin_gln": "GLN-0614141000000",
   "harvest_date": "2024-01-15T00:00:00Z",
   "kde_hash": "hash123",
-  "hs_code": "5201.00",
   "status": "Declared",
-  "custody_chain": ["did:example:farmer1"]
+  "custody_chain": ["TRST01-FARMER-001"]
 }
 ```
 
@@ -370,8 +370,8 @@ curl -X POST http://localhost:3001/search \
       "city": "std:080",
       "action": "search",
       "timestamp": "2024-01-15T10:00:00Z",
-      "bap_id": "did:example:bap",
-      "bpp_id": "did:example:bpp"
+      "bap_id": "TRST01-BAP-001",
+      "bpp_id": "TRST01-BPP-001"
     },
     "message": {
       "intent": {
@@ -417,7 +417,7 @@ BAP /search → BPP /on_search → getLotsByFilter() → Returns lots
 
 ### Phase 3: Selection & Confirmation
 
-#### 3.1 Buyer selects the lot
+#### 3.1 Buyer selects a lot (Beckn Select)
 
 ```bash
 curl -X POST http://localhost:3001/select \
@@ -426,11 +426,13 @@ curl -X POST http://localhost:3001/select \
     "context": {
       "domain": "oats:agri-traceability",
       "action": "select",
-      "timestamp": "2024-01-15T10:05:00Z"
+      "timestamp": "2024-01-15T10:05:00Z",
+      "bap_id": "TRST01-BAP-001",
+      "bpp_id": "TRST01-BPP-001"
     },
     "message": {
       "order": {
-        "items": [{"id": "SGTIN-001"}],
+        "items": [{"id": "061414112345678901"}],
         "quote": {
           "price": {
             "currency": "INR",
@@ -458,7 +460,7 @@ curl -X POST http://localhost:3001/select \
 }
 ```
 
-#### 3.2 Buyer initializes order
+#### 3.2 Buyer initiates order
 
 ```bash
 curl -X POST http://localhost:3001/init \
@@ -467,11 +469,13 @@ curl -X POST http://localhost:3001/init \
     "context": {
       "domain": "oats:agri-traceability",
       "action": "init",
-      "timestamp": "2024-01-15T10:10:00Z"
+      "timestamp": "2024-01-15T10:10:00Z",
+      "bap_id": "TRST01-BAP-001",
+      "bpp_id": "TRST01-BPP-001"
     },
     "message": {
       "order": {
-        "items": [{"id": "SGTIN-001"}]
+        "items": [{"id": "061414112345678901"}]
       }
     }
   }'
@@ -490,7 +494,7 @@ curl -X POST http://localhost:3001/init \
 }
 ```
 
-#### 3.3 Buyer confirms custody transfer (Beckn Confirm)
+#### 3.3 Buyer confirms custody transfer
 
 ```bash
 curl -X POST http://localhost:3001/confirm \
@@ -499,14 +503,16 @@ curl -X POST http://localhost:3001/confirm \
     "context": {
       "domain": "oats:agri-traceability",
       "action": "confirm",
-      "timestamp": "2024-01-15T10:15:00Z"
+      "timestamp": "2024-01-15T10:15:00Z",
+      "bap_id": "TRST01-BAP-001",
+      "bpp_id": "TRST01-BPP-001"
     },
     "message": {
       "order": {
         "id": "ORDER_001",
         "items": [{"id": "061414112345678901"}],
-        "provider": {"id": "did:example:farmer1"},
-        "consumer": {"id": "did:example:buyer1"},
+        "provider": {"id": "TRST01-FARMER-001"},
+        "consumer": {"id": "TRST01-BUYER-001"},
         "quote": {"id": "QUOTE_001"}
       }
     }
@@ -528,8 +534,8 @@ BAP /confirm → BPP /on_confirm → transferCustody() → Updates custody chain
       "@ondc/org/traceability": {
         "transfer_id": "TRANSFER_061414112345678901_1705334100000",
         "lot_id": "061414112345678901",
-        "from_did": "did:example:farmer1",
-        "to_did": "did:example:buyer1",
+        "from_did": "TRST01-FARMER-001",
+        "to_did": "TRST01-BUYER-001",
         "timestamp": "2024-01-15T10:15:00Z"
       }
     }
@@ -538,7 +544,7 @@ BAP /confirm → BPP /on_confirm → transferCustody() → Updates custody chain
 ```
 
 **Chaincode State Change:**
-- Lot custody chain: `[did:example:farmer1, did:example:buyer1]`
+- Lot custody chain: `[TRST01-FARMER-001, TRST01-BUYER-001]`
 - Lot status: `Confirmed`
 - New custody transfer record created on ledger
 
@@ -555,14 +561,16 @@ curl -X POST http://localhost:3002/on_status \
     "context": {
       "domain": "oats:agri-traceability",
       "action": "on_status",
-      "timestamp": "2024-01-15T11:00:00Z"
+      "timestamp": "2024-01-15T11:00:00Z",
+      "bap_id": "TRST01-BAP-001",
+      "bpp_id": "TRST01-BPP-001"
     },
     "message": {
       "order": {
         "items": [{"id": "061414112345678901"}],
         "state": "dispatch_initiated",
         "gps_coords": "12.9716,77.5946",
-        "transporter_id": "did:example:transporter1",
+        "transporter_id": "TRST01-TRANSPORT-001",
         "vehicle_id": "VEH001"
       }
     }
@@ -605,7 +613,9 @@ curl -X POST http://localhost:3002/on_status \
     "context": {
       "domain": "oats:agri-traceability",
       "action": "on_status",
-      "timestamp": "2024-01-15T11:05:00Z"
+      "timestamp": "2024-01-15T11:05:00Z",
+      "bap_id": "TRST01-BAP-001",
+      "bpp_id": "TRST01-BPP-001"
     },
     "message": {
       "order": {
@@ -652,7 +662,9 @@ curl -X POST http://localhost:3002/on_status \
     "context": {
       "domain": "oats:agri-traceability",
       "action": "on_status",
-      "timestamp": "2024-01-15T11:03:00Z"
+      "timestamp": "2024-01-15T11:03:00Z",
+      "bap_id": "TRST01-BAP-001",
+      "bpp_id": "TRST01-BPP-001"
     },
     "message": {
       "order": {
@@ -699,13 +711,15 @@ curl -X POST http://localhost:3002/on_status \
     "context": {
       "domain": "oats:agri-traceability",
       "action": "on_status",
-      "timestamp": "2024-01-15T14:00:00Z"
+      "timestamp": "2024-01-15T14:00:00Z",
+      "bap_id": "TRST01-BAP-001",
+      "bpp_id": "TRST01-BPP-001"
     },
     "message": {
       "order": {
         "items": [{"id": "061414112345678901"}],
         "state": "Delivered",
-        "buyer_id": "did:example:buyer1",
+        "buyer_id": "TRST01-BUYER-001",
         "condition_hash": "hash456"
       }
     }
@@ -735,7 +749,7 @@ BPP /on_status → receiveLot() → Records receipt event
 
 **Chaincode State Change:**
 - Lot status: `Received`
-- Lot current custodian: `did:example:buyer1`
+- Lot current custodian: `TRST01-BUYER-001`
 - New receipt record created on ledger
 
 ---
@@ -751,13 +765,13 @@ curl -X POST http://localhost:3000/beckn/declare-lot \
   -H "Content-Type: application/json" \
   -d '{
     "lotId": "061414112345678902",
-    "actorDID": "did:example:buyer1",
+    "actorDID": "TRST01-BUYER-001",
     "commodityType": "ginned_cotton",
     "commoditySector": "agriculture",
+    "commodityHsCode": "5203.00",
     "originGLN": "GLN-0614141000000",
     "harvestDate": "2024-01-15T15:00:00Z",
-    "kdeHash": "hash789",
-    "hsCode": "5203.00"
+    "kdeHash": "hash789"
   }'
 ```
 
@@ -770,7 +784,9 @@ curl -X POST http://localhost:3002/on_update \
     "context": {
       "domain": "oats:agri-traceability",
       "action": "on_update",
-      "timestamp": "2024-01-15T15:00:00Z"
+      "timestamp": "2024-01-15T15:00:00Z",
+      "bap_id": "TRST01-BAP-001",
+      "bpp_id": "TRST01-BPP-001"
     },
     "message": {
       "order": {
@@ -780,7 +796,7 @@ curl -X POST http://localhost:3002/on_update \
         "processType": "ginning",
         "inputLotIDs": ["061414112345678901"],
         "outputLotIDs": ["061414112345678902"],
-        "facilityId": "FACILITY_001",
+        "facilityId": "TRST01-GINNING-001",
         "yieldRatio": "0.4"
       }
     }
@@ -849,12 +865,12 @@ curl -X POST http://localhost:3000/query/custom \
 
 | Stage | Status | Custody Chain | Events |
 |-------|--------|---------------|--------|
-| Declared | `Declared` | `[did:example:farmer1]` | declareLot() |
-| Confirmed | `Confirmed` | `[did:example:farmer1, did:example:buyer1]` | transferCustody() |
-| Dispatch Initiated | `DispatchPending` | `[did:example:farmer1, did:example:buyer1]` | initiateDispatch() |
-| Dispatch Confirmed | `Dispatched` | `[did:example:farmer1, did:example:buyer1]` | confirmDispatch() |
-| Received | `Received` | `[did:example:farmer1, did:example:buyer1]` | receiveLot() |
-| Transformed | `Processed` | `[did:example:farmer1, did:example:buyer1]` | transformLot() |
+| Declared | `Declared` | `[TRST01-FARMER-001]` | declareLot() |
+| Confirmed | `Confirmed` | `[TRST01-FARMER-001, TRST01-BUYER-001]` | transferCustody() |
+| Dispatch Initiated | `DispatchPending` | `[TRST01-FARMER-001, TRST01-BUYER-001]` | initiateDispatch() |
+| Dispatch Confirmed | `Dispatched` | `[TRST01-FARMER-001, TRST01-BUYER-001]` | confirmDispatch() |
+| Received | `Received` | `[TRST01-FARMER-001, TRST01-BUYER-001]` | receiveLot() |
+| Transformed | `Processed` | `[TRST01-FARMER-001, TRST01-BUYER-001]` | transformLot() |
 
 **Note:** Dispatch cancellation in `DispatchPending` status reverts to `Confirmed`.
 
