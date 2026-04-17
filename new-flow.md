@@ -96,12 +96,17 @@ The `oatsTraceability.js` chaincode contains these core functions:
 
 The Beckn functions extend the existing chaincode:
 
+### Quick Reference: All Beckn Functions
+
 | Beckn Function | Purpose | EPCIS Mapping | Beckn API |
 |----------------|---------|--------------|-----------|
-| `declareLot()` | Register new commodity lot | ObjectEvent (ADD) | Actor-initiated |
-| `getLotsByFilter()` | Query lots with filters | QueryEvent | on_search |
-| `transferCustody()` | Transfer custody between actors | TransactionEvent (XFER) | on_confirm |
-| `dispatchLot()` | Record physical dispatch | ObjectEvent (DEPART) | on_status |
+| `declareLot()` | Register new commodity lot with HS code | ObjectEvent (ADD) | Actor-initiated |
+| `getLotsByFilter()` | Query lots with filters (only Declared) | QueryEvent | on_search |
+| `transferCustody()` | Transfer custody between actors (sets Confirmed) | TransactionEvent (XFER) | on_confirm |
+| `initiateDispatch()` | Create pending dispatch (can be cancelled) | ObjectEvent (DEPART) | on_status (dispatch_initiated) |
+| `confirmDispatch()` | Confirm dispatch and transfer ownership | TransactionEvent (XFER) | on_status (dispatch_confirmed) |
+| `cancelDispatch()` | Cancel pending dispatch (reverts to Confirmed) | ObjectEvent (DELETE) | on_status (dispatch_cancelled) |
+| `dispatchLot()` | Record physical dispatch (legacy) | ObjectEvent (DEPART) | on_status |
 | `receiveLot()` | Record physical receipt | ObjectEvent (ARRIVE) | on_status |
 | `transformLot()` | Processing/transformation | TransformationEvent | on_update |
 | `splitMergeLot()` | Split/merge lots | AggregationEvent | on_update |
@@ -586,7 +591,7 @@ curl -X POST http://localhost:3002/on_status \
 
 **Flow:**
 ```
-BPP /on_status → dispatchLot() → Records dispatch event
+BPP /on_status → initiateDispatch() → Creates pending dispatch
 ```
 
 **Response:**
@@ -597,8 +602,56 @@ BPP /on_status → dispatchLot() → Records dispatch event
     "order": {
       "updated_at": "2024-01-15T11:00:00Z",
       "@ondc/org/traceability": {
-        "event_id": "DISPATCH_SGTIN-001_1705334400000",
-        "status": "InTransit"
+        "event_id": "DISPATCH_061414112345678901_1705334400000",
+        "status": "DispatchPending"
+      }
+    }
+  }
+}
+```
+
+**Chaincode State Change:**
+- Lot status: `DispatchPending`
+- Lot current location: `12.9716,77.5946`
+- Lot transporter: `did:example:transporter1`
+- New dispatch record created with status: `Pending` (can be cancelled)
+
+#### 4.2 Buyer confirms dispatch (Beckn Dispatch Confirmed)
+
+```bash
+curl -X POST http://localhost:3002/on_status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "context": {
+      "domain": "oats:agri-traceability",
+      "action": "on_status",
+      "timestamp": "2024-01-15T11:05:00Z"
+    },
+    "message": {
+      "order": {
+        "items": [{"id": "061414112345678901"}],
+        "state": "dispatch_confirmed",
+        "dispatch_id": "DISPATCH_061414112345678901_1705334400000"
+      }
+    }
+  }'
+```
+
+**Flow:**
+```
+BPP /on_status → confirmDispatch() → Transfers ownership to buyer
+```
+
+**Response:**
+```json
+{
+  "context": {"action": "on_status"},
+  "message": {
+    "order": {
+      "updated_at": "2024-01-15T11:05:00Z",
+      "@ondc/org/traceability": {
+        "event_id": "DISPATCH_061414112345678901_1705334400000",
+        "status": "Dispatched"
       }
     }
   }
@@ -607,11 +660,57 @@ BPP /on_status → dispatchLot() → Records dispatch event
 
 **Chaincode State Change:**
 - Lot status: `Dispatched`
-- Lot current location: `12.9716,77.5946`
-- Lot transporter: `did:example:transporter1`
-- New dispatch record created on ledger
+- Ownership transferred to buyer
+- Dispatch record status: `Confirmed`
 
-#### 4.2 Consignee receives the lot (Beckn Receipt)
+#### 4.3 Buyer cancels dispatch (Optional - only before confirmation)
+
+```bash
+curl -X POST http://localhost:3002/on_status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "context": {
+      "domain": "oats:agri-traceability",
+      "action": "on_status",
+      "timestamp": "2024-01-15T11:03:00Z"
+    },
+    "message": {
+      "order": {
+        "items": [{"id": "061414112345678901"}],
+        "state": "dispatch_cancelled",
+        "dispatch_id": "DISPATCH_061414112345678901_1705334400000"
+      }
+    }
+  }'
+```
+
+**Flow:**
+```
+BPP /on_status → cancelDispatch() → Reverts to Confirmed
+```
+
+**Response:**
+```json
+{
+  "context": {"action": "on_status"},
+  "message": {
+    "order": {
+      "updated_at": "2024-01-15T11:03:00Z",
+      "@ondc/org/traceability": {
+        "event_id": "DISPATCH_061414112345678901_1705334400000",
+        "status": "Confirmed"
+      }
+    }
+  }
+}
+```
+
+**Chaincode State Change:**
+- Lot status: `Confirmed` (reverted from DispatchPending)
+- Ownership unchanged (still with farmer)
+- Dispatch record status: `Cancelled`
+
+#### 4.4 Consignee receives the lot (Beckn Receipt)
 
 ```bash
 curl -X POST http://localhost:3002/on_status \
@@ -624,7 +723,7 @@ curl -X POST http://localhost:3002/on_status \
     },
     "message": {
       "order": {
-        "items": [{"id": "SGTIN-001"}],
+        "items": [{"id": "061414112345678901"}],
         "state": "Delivered",
         "consignee_id": "did:example:consignee1",
         "condition_hash": "hash456"
@@ -646,7 +745,7 @@ BPP /on_status → receiveLot() → Records receipt event
     "order": {
       "updated_at": "2024-01-15T14:00:00Z",
       "@ondc/org/traceability": {
-        "event_id": "RECEIPT_SGTIN-001_1705334400000",
+        "event_id": "RECEIPT_061414112345678901_1705334400000",
         "status": "Delivered"
       }
     }
@@ -673,13 +772,14 @@ curl -X POST http://localhost:3000/query/invoke \
   -d '{
     "functionName": "declareLot",
     "args": [
-      "SGTIN-002",
+      "061414112345678902",  // GS1 SGTIN format for output lot
       "did:example:consignee1",
       "ginned_cotton",
       "agriculture",
-      "GLN-002",
+      "GLN-0614141000000",
       "2024-01-15T15:00:00Z",
-      "hash789"
+      "hash789",
+      "5203.00"               // HS Code for ginned cotton
     ]
   }'
 ```
@@ -698,11 +798,11 @@ curl -X POST http://localhost:3002/on_update \
     "message": {
       "order": {
         "update_type": "transform",
-        "items": [{"id": "SGTIN-001"}],
+        "items": [{"id": "061414112345678901"}],
         "processId": "PROCESS_001",
         "processType": "ginning",
-        "inputLotIDs": ["SGTIN-001"],
-        "outputLotIDs": ["SGTIN-002"],
+        "inputLotIDs": ["061414112345678901"],
+        "outputLotIDs": ["061414112345678902"],
         "facilityId": "FACILITY_001",
         "yieldRatio": "0.4"
       }
@@ -768,23 +868,26 @@ curl -X POST http://localhost:3000/query/custom \
 
 ## Summary of Chaincode State Changes
 
-### Lot SGTIN-001 Lifecycle
+### Lot 061414112345678901 Lifecycle
 
 | Stage | Status | Custody Chain | Events |
 |-------|--------|---------------|--------|
 | Declared | `Declared` | `[did:example:farmer1]` | declareLot() |
-| Confirmed | `InTransit` | `[did:example:farmer1, did:example:buyer1]` | transferCustody() |
-| Dispatched | `Dispatched` | `[did:example:farmer1, did:example:buyer1]` | dispatchLot() |
+| Confirmed | `Confirmed` | `[did:example:farmer1, did:example:buyer1]` | transferCustody() |
+| Dispatch Initiated | `DispatchPending` | `[did:example:farmer1, did:example:buyer1]` | initiateDispatch() |
+| Dispatch Confirmed | `Dispatched` | `[did:example:farmer1, did:example:buyer1]` | confirmDispatch() |
 | Received | `Received` | `[did:example:farmer1, did:example:buyer1]` | receiveLot() |
 | Transformed | `Processed` | `[did:example:farmer1, did:example:buyer1]` | transformLot() |
+
+**Note:** Dispatch cancellation in `DispatchPending` status reverts to `Confirmed`.
 
 ### Ledger Records Created
 
 1. **Actor Records:** 4 actors (farmer, buyer, transporter, consignee)
 2. **Facility Record:** 1 ginning facility
-3. **Lot Records:** 2 lots (SGTIN-001, SGTIN-002)
+3. **Lot Records:** 2 lots (061414112345678901, 061414112345678902)
 4. **Custody Transfer:** 1 transfer record
-5. **Dispatch Record:** 1 dispatch record
+5. **Dispatch Record:** 1 dispatch record (with Pending/Confirmed status)
 6. **Receipt Record:** 1 receipt record
 7. **Transformation Record:** 1 transformation record
 
