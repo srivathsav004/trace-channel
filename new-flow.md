@@ -375,7 +375,8 @@ curl -X POST http://localhost:3001/search \
     },
     "message": {
       "intent": {
-        "commoditySector": "agriculture"
+        "commoditySector": "agriculture",
+        "actorId": "TRST01-FARMER-001"
       }
     }
   }'
