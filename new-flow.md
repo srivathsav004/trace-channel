@@ -323,7 +323,7 @@ curl -X POST http://localhost:3000/facilities/create \
 #### 1.5 Declare Cotton Lot (Beckn Function)
 
 ```bash
-curl -X POST http://localhost:3000/beckn/declare-lot \
+curl -X POST http://localhost:3000/query/beckn/declare-lot \
   -H "Content-Type: application/json" \
   -d '{
     "lotId": "061414112345678901",
@@ -761,7 +761,7 @@ BPP /on_status → receiveLot() → Records receipt event
 First, create the output lot that will be produced:
 
 ```bash
-curl -X POST http://localhost:3000/beckn/declare-lot \
+curl -X POST http://localhost:3000/query/beckn/declare-lot \
   -H "Content-Type: application/json" \
   -d '{
     "lotId": "061414112345678902",
@@ -893,20 +893,20 @@ curl -X POST http://localhost:3000/query/custom \
 | Function | Endpoint | Purpose |
 |----------|----------|---------|
 | `getLotsByFilter()` | `/query/custom` | Query lots with filters |
-| `getLotWithLineage()` | `/beckn/get-lot-lineage` | Get lot with lineage |
+| `getLotWithLineage()` | `/query/beckn/get-lot-lineage` | Get lot with lineage |
 
 ### Transaction Functions (Write)
 
 | Function | Endpoint | Purpose |
 |----------|----------|---------|
-| `declareLot()` | `/beckn/declare-lot` | Register new commodity lot with HS code |
-| `transferCustody()` | `/beckn/transfer-custody` | Transfer custody between actors |
-| `initiateDispatch()` | `/beckn/initiate-dispatch` | Create pending dispatch |
-| `confirmDispatch()` | `/beckn/confirm-dispatch` | Confirm dispatch and transfer ownership |
-| `cancelDispatch()` | `/beckn/cancel-dispatch` | Cancel pending dispatch |
-| `receiveLot()` | `/beckn/receive-lot` | Record physical receipt |
-| `transformLot()` | `/beckn/transform-lot` | Processing/transformation |
-| `splitMergeLot()` | `/beckn/split-merge-lot` | Split/merge lots |
+| `declareLot()` | `/query/beckn/declare-lot` | Register new commodity lot with HS code |
+| `transferCustody()` | `/query/beckn/transfer-custody` | Transfer custody between actors |
+| `initiateDispatch()` | `/query/beckn/initiate-dispatch` | Create pending dispatch |
+| `confirmDispatch()` | `/query/beckn/confirm-dispatch` | Confirm dispatch and transfer ownership |
+| `cancelDispatch()` | `/query/beckn/cancel-dispatch` | Cancel pending dispatch |
+| `receiveLot()` | `/query/beckn/receive-lot` | Record physical receipt |
+| `transformLot()` | `/query/beckn/transform-lot` | Processing/transformation |
+| `splitMergeLot()` | `/query/beckn/split-merge-lot` | Split/merge lots |
 
 ---
 
