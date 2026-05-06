@@ -377,8 +377,8 @@ graph LR
 ```mermaid
 xychart-beta
     title "Throughput Comparison (TPS)"
-    x-axis ["Fabric Classic", "Fabric-X (2025)", "Polygon PoS Typical", "Polygon PoS Peak", "Chia On-chain"]
-    y-axis "TPS" 0 --> 25000
+    x-axis ["Fabric Classic", "Fabric-X", "Polygon Typical", "Polygon Peak", "Chia On-chain"]
+    y-axis "Transactions Per Second" 0 --> 70000
     bar [3500, 20000, 7000, 65000, 52]
 ```
 
